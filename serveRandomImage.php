@@ -18,7 +18,7 @@ if ( isset($_GET['id']) ) {
     $image = mysql_fetch_assoc($result);
     
     // prepare a hint for the player: continent or Northern of Southern hemisphere
-    if (is_numeric($image['lat'])) { $image['hint'] = prepareHint($image); }
+    if (is_numeric($image['lat'])) { $image['hint'] = prepareHint($image, $pgdb, $pguser, $pgpw); }
     
     $image['info'] = prepareInfo($image);
     
@@ -80,8 +80,8 @@ function prepareHint($image, $pgdb, $pguser, $pgpw) {
     
     } elseif ( is_numeric($image['lat']) ) {
         
-        if ( $image['lat'] < 90 ) { return "N"; }
-        if ( $image['lat'] >= 90 ) { return "Z"; }
+        if ( $image['lat'] < 90 ) { return "the Northern hemisphere"; }
+        if ( $image['lat'] >= 90 ) { return "the Southern hemisphere"; }
         
     }    
     
