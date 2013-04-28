@@ -41,9 +41,7 @@ if ( isset($_GET['id']) ) {
     $image['info'] = prepareInfo($image);
     
     // prepare a hint for the player: continent or Northern of Southern hemisphere
-    if (isset($dbconn)) {
-        if (is_numeric($image['lat'])) { $image['hint'] = prepareHint($image, $dbconn); }
-    }
+    if (is_numeric($image['lat'])) { $image['hint'] = prepareHint($image, $pgdb, $pguser, $pgpw); }
 
 }
 
@@ -58,22 +56,35 @@ function prepareInfo($image) {
     
     $launchdate = new DateTime($image['mission_start']);
     
-    $features = ucwords(strtolower($image['feat'])) . ", " . ucwords(strtolower($image['geon']));
+    if ( $image['feat'] > '' && $image['geon'] > '' ) { $separator = ", "; }
+    if ( $image['feat'] > '' || $image['geon'] > '' ) {
+        $features = " Features: " . ucwords(strtolower($image['feat'])) . $separator . ucwords(strtolower($image['geon'])) . ".";
+    } 
     
-    return "This photo was taken during space mission " . $image['mission'] . ", which was launched " . $launchdate->format('j F Y') . ". Features: " . $features . ".";
+    return "This photo was taken during space mission " . $image['mission'] . ", which was launched " . $launchdate->format('j F Y') . "." . $features;
     
 }
 
-function prepareHint($image, $dbconn) {
+function prepareHint($image, $pgdb, $pguser, $pgpw) {
     
+    $dbconn = pg_connect("host=localhost dbname=" . $pgdb . " user=" . $pguser . " password=" . $pgpw) or die('Could not connect: ' . pg_last_error());
+
     if ( is_numeric($image['lat']) && is_numeric($image['lon'])) {
-        return getContinentTimezone($image['lat'], $image['lon'], $dbconn);
+        $hint = getContinentTimezone($image['lat'], $image['lon'], $dbconn);
     }
 
-    if ( $image['hint'] == null && is_numeric($image['lat'])) {
+    // if a continent was found, return it; else: just give northern or southern hemisphere.
+    if ( $hint != null ) {
+        
+        return $hint;
+    
+    } elseif ( is_numeric($image['lat']) ) {
+        
         if ( $image['lat'] < 90 ) { return "N"; }
         if ( $image['lat'] >= 90 ) { return "Z"; }
-    }
+        
+    }    
+    
     
 }
 
@@ -82,7 +93,7 @@ function getContinentTimezone($lat, $lon, $dbconn) {
     // FOR POINTS THAT WERE NOT IN TIMEZONES: select nearest timezone 
     $query = "SELECT gid, tzid, ST_distance(the_geom, ST_GeomFromText('POINT(" . $lon . " " . $lat . ")')) as dist FROM tz_world_mp WHERE ST_DWithin(the_geom, ST_GeomFromText('POINT(" . $lon . " " . $lat . ")'), 10) order by dist limit 1";
     
-    $resultTZ = pg_query($query) or die('Query failed: ' . pg_last_error());
+    $resultTZ = pg_query($dbconn, $query) or die('Query failed: ' . pg_last_error());
     
     $tz = pg_fetch_array($resultTZ, null, PGSQL_ASSOC);
     
@@ -98,7 +109,11 @@ function getContinentTimezone($lat, $lon, $dbconn) {
     if ( ! in_array($timezone[0],array('Africa', 'America', 'Asia', 'Australia', 'Europe')) ) {
         return null;
     } else {
-        return $timezone[0];
+        if ( $timezone[0] == 'America' ) {
+            return 'the Americas';
+        } else {
+            return $timezone[0];
+        }
     }
 
 
